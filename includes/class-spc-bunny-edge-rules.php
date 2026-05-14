@@ -291,7 +291,7 @@ class SPC_Bunny_Edge_Rules {
                 'Triggers'            => [ [
                     'Type'                => 1,
                     'Parameter1'          => 'cookie',
-                    'PatternMatches'      => [ '*sc_session*', '*surecart_*', '*sc_cart*' ],
+                    'PatternMatches'      => [ '*sc_session*', '*surecart_*', '*sc_cart*', '*sc_customer*' ],
                     'PatternMatchingType' => 0,
                 ] ],
             ], $guids, $results );
@@ -394,7 +394,6 @@ class SPC_Bunny_Edge_Rules {
                 'PatternMatchingType' => 0,
             ] ],
             'ExtraActions'        => [
-                [ 'ActionType' => 5, 'ActionParameter1' => 'X-Frame-Options',     'ActionParameter2' => 'SAMEORIGIN',                  'ActionParameter3' => '' ],
                 [ 'ActionType' => 5, 'ActionParameter1' => 'Referrer-Policy',     'ActionParameter2' => 'strict-origin-when-cross-origin', 'ActionParameter3' => '' ],
                 [ 'ActionType' => 5, 'ActionParameter1' => 'X-XSS-Protection',   'ActionParameter2' => '1; mode=block',               'ActionParameter3' => '' ],
             ],
@@ -471,9 +470,14 @@ class SPC_Bunny_Edge_Rules {
             return [];
         }
         $paths     = [];
-        $page_keys = [ 'checkout', 'dashboard', 'order_confirmation', 'shop', 'cart' ];
+        // SureCart stores page IDs under surecart_page_for_{key}, NOT surecart_page_id_{key}.
+        // Also try the legacy surecart_page_id_ prefix for older installs.
+        $page_keys = [ 'checkout', 'dashboard', 'order_confirmation', 'shop', 'cart', 'account' ];
         foreach ( $page_keys as $key ) {
-            $id = (int) get_option( "surecart_page_id_{$key}", 0 );
+            $id = (int) get_option( "surecart_page_for_{$key}", 0 );
+            if ( ! $id ) {
+                $id = (int) get_option( "surecart_page_id_{$key}", 0 ); // legacy fallback
+            }
             if ( $id > 0 ) {
                 $paths = array_merge( $paths, $this->resolve_paths( $id ) );
             }

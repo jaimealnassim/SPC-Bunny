@@ -242,6 +242,10 @@ WordPress loads plugins alphabetically. `wp-cloudflare-page-cache` loads before 
 
 Registering `swcfpc_purge_all` and `swcfpc_purge_urls` as global functions at the top level of the main plugin file — before any `add_action` wrapper — guarantees they are in the WordPress hook registry before SPC runs, regardless of load order.
 
+### Auto-updates
+
+Updates are delivered via the [WP_GitHub_Updater](https://github.com/radishconcepts/WordPress-GitHub-Plugin-Updater) library. It reads the `Version:` header from `spc-bunny-connector.php` on the `main` branch and notifies WordPress when a newer version is available. No GitHub Release is required — bump the version header and push to `main`.
+
 ### Bunny API endpoints used
 
 | Method | Endpoint | Purpose |
