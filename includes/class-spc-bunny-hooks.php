@@ -102,7 +102,7 @@ class SPC_Bunny_Hooks {
     // ── Admin bar ─────────────────────────────────────────────────────────────
 
     public function admin_bar_button( WP_Admin_Bar $bar ): void {
-        if ( ! is_admin_bar_showing() || ! current_user_can( 'manage_options' ) ) {
+        if ( ! is_admin() || ! is_admin_bar_showing() || ! current_user_can( 'manage_options' ) ) {
             return;
         }
         // Check configuration without instantiating a full API object

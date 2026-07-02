@@ -1,14 +1,15 @@
-# SPC Bunny Connector
+> [!WARNING]
+> ## This Plugin Has Been Discontinued
+>
+> **SPC Bunny Connector** is no longer maintained.
+>
+> Please install our replacement plugin: **[Nahnu Cache Connector for Bunny.net](https://wordpress.org/plugins/nahnu-cache-connector-bunny-net/)**
+>
+> It includes everything this plugin does, plus new features and ongoing updates. This repository is kept for reference only.
 
-| | |
-|---|---|
-| **Version** | 2.1.1 |
-| **Last Updated** | April 04, 2026 |
-| **Requires WordPress** | 6.0+ |
-| **Requires PHP** | 8.1+ |
-| **License** | GPL-2.0+ |
-| **Author** | [Nahnu Media](https://nahnumedia.com) |
-| **GitHub** | [jaimealnassim/SPC-Bunny](https://github.com/jaimealnassim/SPC-Bunny) |
+---
+
+# SPC Bunny Connector
 
 **WordPress plugin — Super Page Cache Pro + Bunny.net CDN**
 
@@ -66,19 +67,9 @@ That's it. Bunny will now purge automatically whenever SPC clears its cache.
 
 ### Edge Rules Tab
 
-Deploys up to 20 edge rules to your Pull Zone. Each rule has an on/off toggle — enable only what your site needs. Rules are deployed in a specific order so bypass rules always take priority over cache rules.
+Deploys up to 19 edge rules to your Pull Zone. Each rule has an on/off toggle — enable only what your site needs. Rules are deployed in a specific order so bypass rules always take priority over cache rules.
 
-Three action buttons are always available:
-
-| Button | What it does |
-|---|---|
-| **Deploy Edge Rules** | Creates all rules fresh. Safe to run at any time. |
-| **Update Edge Rules** | Wipes all existing rules from Bunny, then redeploys from scratch. Use after changing settings or if rules are out of sync. |
-| **Remove All Rules** | Deletes every SPC Bunny rule from the Pull Zone. No redeploy. |
-
-> Deploy and Update both wipe the Pull Zone before creating rules, so there are never duplicate or conflicting OrderIndex values.
-
-**Custom Cache Exclusions** — enter one path per line to bypass edge caching for specific pages. Supports wildcards (`/shop/*`). Changes take effect on next Deploy or Update.
+**Custom Cache Exclusions** — enter one path per line to bypass edge caching for specific pages. Supports wildcards (`/shop/*`). Changes take effect on next Deploy.
 
 ### Manual Purge Tab
 
@@ -96,7 +87,7 @@ Query statistics for your Bunny DNS zone. Requires a DNS Zone ID in Settings.
 
 ## Edge Rules
 
-All 20 rules, in deployment order:
+All 19 rules, in deployment order:
 
 | # | Rule | What it does |
 |---|---|---|
@@ -108,16 +99,15 @@ All 20 rules, in deployment order:
 | 6 | Disable Optimizer: WP admin & login | Bunny Optimizer can mangle admin JS/CSS. Disabled for admin and login pages. |
 | 7 | Bypass cache: wp-cron.php | WP cron must always hit origin. Never cached or Shield-challenged. |
 | 8 | Bypass cache: REST API | `/wp-json/*` is dynamic per-request. Never cached. |
-| 9 | Bypass cache: POST requests | All HTTP POST requests (form submissions, AJAX writes) bypass cache entirely — even with Force Cache active. Covers all form plugins and `admin-ajax.php`. |
-| 10 | Bypass cache: RSS/Atom feeds | Feeds update with every new post. Always served fresh. |
-| 11–12 | WooCommerce pages + cookies | Dynamically resolved from WooCommerce settings. Supports WPML and Polylang. |
-| 13–14 | SureCart pages + cookies | Checkout, dashboard, order confirmation, shop, cart. Supports WPML and Polylang. |
-| 15 | Custom URL exclusions | Your own paths, configured in the Edge Rules tab. |
-| 16 | Cache HTML: anonymous visitors | Caches HTTP 200 responses at Bunny edge nodes. TTL configurable (1 hour to 30 days). |
-| 17 | No browser cache: HTML | Sends `Cache-Control: no-store` to browsers. Edge still caches — browsers always fetch fresh after purge. No manual reload needed. |
-| 18 | Long browser cache: static assets | 1-year browser cache for CSS, JS, images, fonts. |
-| 19 | Ignore query string: CSS & JS | `style.css?ver=6.4.1` and `style.css?ver=6.4.2` share one cache entry. Eliminates redundant misses from WordPress version params. |
-| 20 | Security headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block` on all responses. |
+| 9 | Bypass cache: RSS/Atom feeds | Feeds update with every new post. Always served fresh. |
+| 10–11 | WooCommerce pages + cookies | Dynamically resolved from WooCommerce settings. Supports WPML and Polylang. |
+| 12–13 | SureCart pages + cookies | Checkout, dashboard, order confirmation, shop, cart. Supports WPML and Polylang. |
+| 14 | Custom URL exclusions | Your own paths, configured in the Edge Rules tab. |
+| 15 | Cache HTML: anonymous visitors | Caches HTTP 200 responses at Bunny edge nodes. TTL configurable (1 hour to 30 days). |
+| 16 | No browser cache: HTML | Sends `Cache-Control: no-store` to browsers. Edge still caches — browsers always fetch fresh after purge. No manual reload needed. |
+| 17 | Long browser cache: static assets | 1-year browser cache for CSS, JS, images, fonts. |
+| 18 | Ignore query string: CSS & JS | `style.css?ver=6.4.1` and `style.css?ver=6.4.2` share one cache entry. Eliminates redundant misses from WordPress version params. |
+| 19 | Security headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block` on all responses. |
 
 ---
 
@@ -166,7 +156,7 @@ The Stats tab includes a **Cache Sync Status** card that polls every 8 seconds a
 
 - When Bunny CDN was last cleared
 - When Super Page Cache was last cleared
-- Whether the two are in sync (within 30 seconds of each other)
+- Whether the two are in sync
 
 This makes it easy to confirm that clearing SPC is actually triggering a Bunny purge.
 
@@ -190,29 +180,23 @@ All purges are full Pull Zone purges. Bunny's per-URL purge is unreliable due to
 
 ## Frequently Asked Questions
 
-**Do I need Super Page Cache Pro or does the free version work?**
+**Do I need Super Page Cache Pro or does the free version work?**  
 Both work. The hooks this plugin uses (`swcfpc_purge_all`, `swcfpc_purge_urls`) exist in the free version.
 
-**Why does this do a full Pull Zone purge instead of purging just the changed URL?**
+**Why does this do a full Pull Zone purge instead of purging just the changed URL?**  
 Bunny's per-URL purge requires an exact match including protocol, subdomain, trailing slash, and query string variants. A single post URL typically has 4–6 valid cached variants. Missing any one means the stale version stays at the edge. A full zone purge takes the same amount of time and guarantees a clean slate.
 
-**Will the cache warmer slow down my server after a purge?**
+**Will the cache warmer slow down my server after a purge?**  
 The warmer runs in batches via WP cron with a configurable delay between batches. The default is 5 URLs per batch with a 30-second delay. Adjust these based on your server capacity.
 
-**Does this work with Cloudflare in front of Bunny?**
+**Does this work with Cloudflare in front of Bunny?**  
 Not tested. This plugin assumes Bunny is the edge layer. If Cloudflare is in front, you'd need a separate Cloudflare purge step.
 
-**Why does the Force SSL rule only match HTTP URLs?**
+**Why does the Force SSL rule only match HTTP URLs?**  
 The rule triggers on `http://yourdomain.com/*` and redirects to HTTPS. HTTPS traffic is not affected.
 
-**Can I use this without deploying edge rules?**
+**Can I use this without deploying edge rules?**  
 Yes. The cache sync (purging Bunny when SPC purges) works independently of the edge rules. Edge rules are optional and additive.
-
-**Why do Deploy and Update both wipe existing rules first?**
-Bunny requires unique `OrderIndex` values per Pull Zone. Updating rules in-place risks conflicts if a previous deploy partially succeeded or if the stored GUIDs are out of sync. Wiping first guarantees a clean slate with no duplicate index errors.
-
-**My form submissions stopped working after deploying edge rules. What should I do?**
-Rule 9 (POST bypass) ensures all form submissions bypass cache at the HTTP method level. If a specific form page also needs to bypass for logged-out users, add its path to **Custom Cache Exclusions** and redeploy.
 
 ---
 
@@ -222,18 +206,16 @@ Rule 9 (POST bypass) ensures all form submissions bypass cache at the HTTP metho
 
 ```
 spc-bunny-connector/
-├── spc-bunny-connector.php             # Bootstrap, SPC hook registration at file scope
+├── spc-bunny-connector.php          # Bootstrap, SPC hook registration at file scope
 └── includes/
-    ├── class-spc-bunny-api.php         # Bunny REST API (Pull Zone, Storage, DNS)
-    ├── class-spc-bunny-stats.php       # CDN stats fetcher
-    ├── class-spc-bunny-purge.php       # Purge orchestration
-    ├── class-spc-bunny-hooks.php       # WordPress action hooks
-    ├── class-spc-bunny-warmer.php      # Sitemap crawler and cache warmer
-    ├── class-spc-bunny-edge-rules.php  # Edge rule deployment (20 rules)
+    ├── class-spc-bunny-api.php      # Bunny REST API (Pull Zone, Storage, DNS)
+    ├── class-spc-bunny-stats.php    # CDN stats fetcher
+    ├── class-spc-bunny-purge.php    # Purge orchestration
+    ├── class-spc-bunny-hooks.php    # WordPress action hooks
+    ├── class-spc-bunny-warmer.php   # Sitemap crawler and cache warmer
+    ├── class-spc-bunny-edge-rules.php  # Edge rule deployment
     ├── class-spc-bunny-perma-cache.php # Perma-Cache storage cleanup
-    ├── class-spc-bunny-admin.php       # Admin UI
-    ├── class-spc-bunny-updater.php     # GitHub auto-update initialiser
-    └── class-wp-github-updater.php     # WP_GitHub_Updater library (v1.6)
+    └── class-spc-bunny-admin.php    # Admin UI
 ```
 
 ### Why SPC hooks are registered at file scope
@@ -242,27 +224,20 @@ WordPress loads plugins alphabetically. `wp-cloudflare-page-cache` loads before 
 
 Registering `swcfpc_purge_all` and `swcfpc_purge_urls` as global functions at the top level of the main plugin file — before any `add_action` wrapper — guarantees they are in the WordPress hook registry before SPC runs, regardless of load order.
 
-### Auto-updates
-
-Updates are delivered via the [WP_GitHub_Updater](https://github.com/radishconcepts/WordPress-GitHub-Plugin-Updater) library. It reads the `Version:` header from `spc-bunny-connector.php` on the `main` branch and notifies WordPress when a newer version is available. No GitHub Release is required — bump the version header and push to `main`.
-
 ### Bunny API endpoints used
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/pullzone` | List Pull Zones for the dropdown |
-| `GET` | `/pullzone/{id}` | Fetch Pull Zone details + `EdgeRules[]` for wipe/delete |
-| `POST` | `/pullzone/{id}` | Update Pull Zone settings on deploy |
-| `POST` | `/pullzone/{id}/purgeCache` | Full Pull Zone cache purge |
-| `POST` | `/pullzone/{id}/edgerules/addOrUpdate` | Create edge rule |
-| `DELETE` | `/pullzone/{id}/edgerules/{guid}` | Delete edge rule |
-| `GET` | `/statistics?pullZone={id}` | CDN bandwidth and request stats |
-| `GET` | `/dnszone` | List DNS zones |
-| `GET` | `/dnszone/{id}/statistics` | DNS query statistics |
-| `GET` | `/{zoneName}/__bcdn_perma_cache__/` | List Perma-Cache directories (Storage API) |
-| `DELETE` | `/{zoneName}/{path}/` | Delete Perma-Cache directory (Storage API) |
-
-> **Note:** There is no dedicated `GET /pullzone/{id}/edgerules` endpoint in the Bunny API. Edge rules are returned as the `EdgeRules` array inside the pull zone object from `GET /pullzone/{id}`.
+| Endpoint | Purpose |
+|---|---|
+| `POST /pullzone/{id}/purgeCache` | Full Pull Zone purge |
+| `POST /pullzone/{id}` | Update Pull Zone settings |
+| `POST /pullzone/{id}/edgerules/addOrUpdate` | Deploy / update edge rule |
+| `DELETE /pullzone/{id}/edgerules/{guid}` | Remove edge rule |
+| `GET /pullzone` | List Pull Zones |
+| `GET /statistics?pullZone={id}` | CDN statistics |
+| `GET /dnszone` | List DNS zones |
+| `GET /dnszone/{id}/statistics` | DNS query statistics |
+| `GET /{zoneName}/__bcdn_perma_cache__/` | List Perma-Cache directories |
+| `DELETE /{zoneName}/{path}/` | Delete Perma-Cache directory |
 
 ---
 

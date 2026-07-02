@@ -58,26 +58,14 @@ class SPC_Bunny_API {
         return true;
     }
 
-    public function upsert_edge_rule( array $rule ): array|WP_Error {
+    public function upsert_edge_rule( array $rule, ?string $guid = null ): array|WP_Error {
         if ( ! $this->is_configured() ) {
             return new WP_Error( 'not_configured', __( 'API key or Pull Zone ID not set.', 'spc-bunny' ) );
+        }
+        if ( $guid !== null ) {
+            $rule['Guid'] = $guid;
         }
         return $this->request( 'POST', self::ZONE_BASE . '/' . $this->zone_id . '/edgerules/addOrUpdate', $rule );
-    }
-
-    public function get_edge_rules(): array|WP_Error {
-        if ( ! $this->is_configured() ) {
-            return new WP_Error( 'not_configured', __( 'API key or Pull Zone ID not set.', 'spc-bunny' ) );
-        }
-        // Edge rules are NOT available via a dedicated list endpoint.
-        // They are returned as EdgeRules[] inside the pull zone object.
-        // Real endpoint: GET /pullzone/{id}  →  response.EdgeRules
-        $result = $this->request( 'GET', self::ZONE_BASE . '/' . $this->zone_id );
-        if ( is_wp_error( $result ) ) {
-            return $result;
-        }
-        $rules = $result['EdgeRules'] ?? [];
-        return is_array( $rules ) ? $rules : [];
     }
 
     public function delete_edge_rule( string $guid ): true|WP_Error {

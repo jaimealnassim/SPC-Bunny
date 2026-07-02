@@ -240,54 +240,10 @@ jQuery( function ( $ ) {
                 if ( res.success ) { setTimeout( function () { location.reload(); }, 1800 ); }
             } )
             .catch( function () { setResult( $res, cfg.i18n.error + 'Request failed.', false ); } )
-            .always( function () {
-                $btn.prop( 'disabled', false );
-                $( '#js-update' ).prop( 'disabled', false );
-                $( '#js-remove' ).prop( 'disabled', false );
-            } );
+            .always( function () { $btn.prop( 'disabled', false ); } );
     } );
 
     // ── Remove ────────────────────────────────────────────────────────────────
-    $( '#js-update' ).on( 'click', function () {
-        if ( ! confirm( 'Remove all existing edge rules and redeploy fresh?' ) ) { return; }
-        var $btn    = $( this ),
-            $deploy = $( '#js-deploy' ),
-            $remove = $( '#js-remove' ),
-            $res    = $( '#js-deploy-result' );
-        var ttl         = $( '#js-ttl' ).val() || 604800;
-        var forceCache  = $( 'input[name="js-force-cache"]:checked' ).val() || '0';
-        var customPaths = $( '#spc_custom_bypass' ).val() || '';
-        var origText    = $btn.text();
-        $( '#js-deploy-table' ).attr( 'hidden', true );
-        $btn.prop( 'disabled', true ).text( cfg.i18n.updating );
-        $deploy.prop( 'disabled', true );
-        $remove.prop( 'disabled', true );
-        setResult( $res, cfg.i18n.updating, null );
-        $.ajax( {
-            url: ajaxurl,
-            type: 'POST',
-            timeout: 120000,
-            data: { action: 'spc_bunny_update_rules', nonce: cfg.nonceUpdate, ttl: ttl, force_cache: forceCache, custom_bypass_paths: customPaths, enabled_rules: $( 'input[name="spc_bunny_rule_enabled[]"]:checked' ).map( function() { return $( this ).val(); } ).get() }
-        } )
-            .done( function ( res ) {
-                var results = res.results || {}, rows = '';
-                $.each( results, function ( k, r ) {
-                    var pill = r.success ? '<span class="spc-bunny-pill is-ok">OK</span>' : '<span class="spc-bunny-pill is-err">Error</span>';
-                    rows += '<tr><td>' + $( '<div>' ).text( r.label ).html() + '</td><td>' + pill + '</td><td>' + $( '<div>' ).text( r.message ).html() + '</td></tr>';
-                } );
-                if ( rows ) { $( '#js-deploy-rows' ).html( rows ); $( '#js-deploy-table' ).removeAttr( 'hidden' ); }
-                setResult( $res, res.success ? cfg.i18n.updateOk : cfg.i18n.error + ( res.message || '' ), res.success );
-            } )
-            .fail( function ( xhr ) {
-                setResult( $res, cfg.i18n.error + ( xhr.statusText || 'Request failed' ), false );
-            } )
-            .always( function () {
-                $btn.prop( 'disabled', false ).text( origText );
-                $deploy.prop( 'disabled', false );
-                $remove.prop( 'disabled', false );
-            } );
-    } );
-
     $( '#js-remove' ).on( 'click', function () {
         if ( ! confirm( cfg.i18n.confirmRemove ) ) { return; }
         var $btn = $( this ), $res = $( '#js-deploy-result' );
@@ -298,11 +254,7 @@ jQuery( function ( $ ) {
                 if ( res.success ) { setTimeout( function () { location.reload(); }, 1500 ); }
             } )
             .catch( function () { setResult( $res, cfg.i18n.error + 'Request failed.', false ); } )
-            .always( function () {
-                $btn.prop( 'disabled', false );
-                $( '#js-deploy' ).prop( 'disabled', false );
-                $( '#js-update' ).prop( 'disabled', false );
-            } );
+            .always( function () { $btn.prop( 'disabled', false ); } );
     } );
 
     // ── DNS Stats ──────────────────────────────────────────────────────────────

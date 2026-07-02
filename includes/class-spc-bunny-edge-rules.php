@@ -16,18 +16,17 @@ class SPC_Bunny_Edge_Rules {
     public const RULE_ADMIN_DISABLE_OPT      = 'admin_disable_optimizer'; // 6  — Optimizer for admin
     public const RULE_BYPASS_CRON            = 'bypass_cron';             // 7  — wp-cron.php
     public const RULE_BYPASS_REST            = 'bypass_rest';             // 8  — REST API
-    public const RULE_BYPASS_POST            = 'bypass_post';             // 9  — POST requests (forms, AJAX)
-    public const RULE_BYPASS_FEEDS           = 'bypass_feeds';            // 10 — RSS/Atom feeds
-    public const RULE_BYPASS_WOO             = 'bypass_woo';              // 11 — WooCommerce pages
-    public const RULE_BYPASS_WOO_COOKIE      = 'bypass_woo_cookie';       // 12 — WooCommerce cookies
-    public const RULE_BYPASS_SC              = 'bypass_sc';               // 13 — SureCart pages
-    public const RULE_BYPASS_SC_COOKIE       = 'bypass_sc_cookie';        // 14 — SureCart cookies
-    public const RULE_CUSTOM_BYPASS          = 'custom_bypass';           // 15 — Custom exclusions
-    public const RULE_CACHE_HTML             = 'cache_html';              // 16 — Cache HTML
-    public const RULE_NO_BROWSER_CACHE       = 'no_browser_cache_html';   // 17 — No browser cache for HTML
-    public const RULE_STATIC_BROWSER_CACHE   = 'static_browser_cache';    // 18 — Long browser cache for assets
-    public const RULE_STATIC_IGNORE_QS       = 'static_ignore_qs';        // 19 — Ignore ?ver= on assets
-    public const RULE_SECURITY_HEADERS       = 'security_headers';        // 20 — Security response headers
+    public const RULE_BYPASS_FEEDS           = 'bypass_feeds';            // 9  — RSS/Atom feeds
+    public const RULE_BYPASS_WOO             = 'bypass_woo';              // 10 — WooCommerce pages
+    public const RULE_BYPASS_WOO_COOKIE      = 'bypass_woo_cookie';       // 11 — WooCommerce cookies
+    public const RULE_BYPASS_SC              = 'bypass_sc';               // 12 — SureCart pages
+    public const RULE_BYPASS_SC_COOKIE       = 'bypass_sc_cookie';        // 13 — SureCart cookies
+    public const RULE_CUSTOM_BYPASS          = 'custom_bypass';           // 14 — Custom exclusions
+    public const RULE_CACHE_HTML             = 'cache_html';              // 15 — Cache HTML
+    public const RULE_NO_BROWSER_CACHE       = 'no_browser_cache_html';   // 16 — No browser cache for HTML
+    public const RULE_STATIC_BROWSER_CACHE   = 'static_browser_cache';    // 17 — Long browser cache for assets
+    public const RULE_STATIC_IGNORE_QS       = 'static_ignore_qs';        // 18 — Ignore ?ver= on assets
+    public const RULE_SECURITY_HEADERS       = 'security_headers';        // 19 — Security response headers
 
     // Static asset extensions that should get long browser cache
     private const STATIC_EXTS = [ 'css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico', 'woff', 'woff2', 'ttf', 'eot', 'otf' ];
@@ -54,32 +53,13 @@ class SPC_Bunny_Edge_Rules {
         $guids   = get_option( self::GUIDS_OPT, [] );
 
         // Clean up stale GUIDs from removed rules
-        $stale_keys = [ 'uploads_bypass_perma_cache', 'bypass_forms' ];
+        $stale_keys = [ 'uploads_bypass_perma_cache' ];
         foreach ( $stale_keys as $stale ) {
             if ( ! empty( $guids[ $stale ] ) ) {
                 $this->api->delete_edge_rule( $guids[ $stale ] );
                 unset( $guids[ $stale ] );
             }
         }
-
-        // Delete ALL edge rules on the pull zone before deploying fresh.
-        // This guarantees no OrderIndex conflicts regardless of what was previously
-        // deployed — including rules from older versions with different descriptions,
-        // or rules created manually in the Bunny dashboard.
-        $live_rules = $this->api->get_edge_rules();
-        if ( ! is_wp_error( $live_rules ) && is_array( $live_rules ) ) {
-            foreach ( $live_rules as $rule ) {
-                $guid = $rule['Guid'] ?? '';
-                if ( $guid ) {
-                    $this->api->delete_edge_rule( $guid );
-                }
-            }
-        }
-        // Clear stored GUIDs — everything will be created fresh below
-        $guids = [];
-
-        // Brief pause to let Bunny propagate the deletions before we re-create.
-        sleep( 1 );
 
         // ── Pull Zone settings ────────────────────────────────────────────────
         $pz = $this->api->update_pull_zone( [
@@ -220,28 +200,10 @@ class SPC_Bunny_Edge_Rules {
             ] ],
         ], $guids, $results );
 
-        // ── Rule 9: Bypass — POST requests ───────────────────────────────────
-        // All HTTP POST requests (form submissions, AJAX writes, REST mutations)
-        // must never be served from cache. Bunny's RequestMethod trigger (Type 6)
-        // fires before any cache lookup, overriding CacheControlMaxAgeOverride.
-        $guids = $this->upsert( self::RULE_BYPASS_POST, [
-            'OrderIndex'          => 9,
-            'ActionType'          => 3,   // BypassCache
-            'ActionParameter1'    => '0',
-            'TriggerMatchingType' => 0,   // MatchAny
-            'Description'         => '[SPC Bunny] Bypass: POST requests (forms/AJAX)',
-            'Enabled'             => true,
-            'Triggers'            => [ [
-                'Type'                => 6,   // RequestMethod
-                'PatternMatches'      => [ 'POST' ],
-                'PatternMatchingType' => 0,
-            ] ],
-        ], $guids, $results );
-
         // ── Rule 9: Bypass — RSS/Atom feeds ──────────────────────────────────
         // Feeds change with every new post. Aggregators poll frequently.
         $guids = $this->upsert( self::RULE_BYPASS_FEEDS, [
-            'OrderIndex'          => 10,
+            'OrderIndex'          => 9,
             'ActionType'          => 3,
             'ActionParameter1'    => '0',
             'TriggerMatchingType' => 0,
@@ -257,10 +219,10 @@ class SPC_Bunny_Edge_Rules {
         // ── Rule 10+11: WooCommerce ───────────────────────────────────────────
         if ( class_exists( 'WooCommerce' ) ) {
             $woo = $this->both_hosts( $this->get_woo_paths() );
-            $guids = $this->upsert_batches( self::RULE_BYPASS_WOO, '[SPC Bunny] Bypass: WooCommerce pages', '0', $woo, $guids, $results, 11 );
+            $guids = $this->upsert_batches( self::RULE_BYPASS_WOO, '[SPC Bunny] Bypass: WooCommerce pages', '0', $woo, $guids, $results, 10 );
 
             $guids = $this->upsert( self::RULE_BYPASS_WOO_COOKIE, [
-                'OrderIndex'          => 12,
+                'OrderIndex'          => 11,
                 'ActionType'          => 3,
                 'ActionParameter1'    => '0',
                 'TriggerMatchingType' => 0,
@@ -279,10 +241,10 @@ class SPC_Bunny_Edge_Rules {
         if ( class_exists( 'SureCart' ) ) {
             $sc = $this->both_hosts( $this->get_surecart_paths() );
             if ( ! empty( $sc ) ) {
-                $guids = $this->upsert_batches( self::RULE_BYPASS_SC, '[SPC Bunny] Bypass: SureCart pages', '0', $sc, $guids, $results, 13 );
+                $guids = $this->upsert_batches( self::RULE_BYPASS_SC, '[SPC Bunny] Bypass: SureCart pages', '0', $sc, $guids, $results, 12 );
             }
             $guids = $this->upsert( self::RULE_BYPASS_SC_COOKIE, [
-                'OrderIndex'          => 14,
+                'OrderIndex'          => 13,
                 'ActionType'          => 3,
                 'ActionParameter1'    => '0',
                 'TriggerMatchingType' => 0,
@@ -291,7 +253,7 @@ class SPC_Bunny_Edge_Rules {
                 'Triggers'            => [ [
                     'Type'                => 1,
                     'Parameter1'          => 'cookie',
-                    'PatternMatches'      => [ '*sc_session*', '*surecart_*', '*sc_cart*', '*sc_customer*' ],
+                    'PatternMatches'      => [ '*sc_session*', '*surecart_*', '*sc_cart*' ],
                     'PatternMatchingType' => 0,
                 ] ],
             ], $guids, $results );
@@ -300,7 +262,7 @@ class SPC_Bunny_Edge_Rules {
         // ── Rule 14: Custom URL exclusions ────────────────────────────────────
         $custom_paths = $this->get_custom_bypass_paths();
         if ( ! empty( $custom_paths ) ) {
-            $guids = $this->upsert_batches( self::RULE_CUSTOM_BYPASS, '[SPC Bunny] Bypass: custom URLs', '0', $custom_paths, $guids, $results, 15 );
+            $guids = $this->upsert_batches( self::RULE_CUSTOM_BYPASS, '[SPC Bunny] Bypass: custom URLs', '0', $custom_paths, $guids, $results, 14 );
         } elseif ( isset( $guids[ self::RULE_CUSTOM_BYPASS ] ) ) {
             $this->api->delete_edge_rule( $guids[ self::RULE_CUSTOM_BYPASS ] );
             unset( $guids[ self::RULE_CUSTOM_BYPASS ] );
@@ -308,7 +270,7 @@ class SPC_Bunny_Edge_Rules {
 
         // ── Rule 15: Cache HTML — anonymous visitors ──────────────────────────
         $guids = $this->upsert( self::RULE_CACHE_HTML, [
-            'OrderIndex'          => 16,
+            'OrderIndex'          => 15,
             'ActionType'          => 3,
             'ActionParameter1'    => (string) $ttl,
             'TriggerMatchingType' => 1,
@@ -331,7 +293,7 @@ class SPC_Bunny_Edge_Rules {
         // ── Rule 16: No browser cache for HTML ────────────────────────────────
         // Bunny edge caches; browsers do not. Fresh page after every purge.
         $guids = $this->upsert( self::RULE_NO_BROWSER_CACHE, [
-            'OrderIndex'          => 17,
+            'OrderIndex'          => 16,
             'ActionType'          => 16,  // OverrideBrowserCacheTime
             'ActionParameter1'    => '0',
             'TriggerMatchingType' => 1,
@@ -363,7 +325,7 @@ class SPC_Bunny_Edge_Rules {
         }
         $static_patterns = array_values( array_unique( $static_patterns ) );
         // Use upsert_batches with ActionType 16 override and '31536000' as param
-        $guids = $this->upsert_batches( self::RULE_STATIC_BROWSER_CACHE, '[SPC Bunny] Long browser cache: static assets', '31536000', $static_patterns, $guids, $results, 18, null, 16 );
+        $guids = $this->upsert_batches( self::RULE_STATIC_BROWSER_CACHE, '[SPC Bunny] Long browser cache: static assets', '31536000', $static_patterns, $guids, $results, 17, null, 16 );
 
         // ── Rule 18: Ignore query string for static assets ────────────────────
         // ?ver=6.4.1 and ?ver=6.4.2 share the same cache entry. Eliminates
@@ -375,13 +337,13 @@ class SPC_Bunny_Edge_Rules {
                 $qs_patterns[] = "https://{$hwww}/*.{$ext}?*";
             }
         }
-        $guids = $this->upsert_batches( self::RULE_STATIC_IGNORE_QS, '[SPC Bunny] Ignore query string: CSS & JS', '', array_values( array_unique( $qs_patterns ) ), $guids, $results, 19, null, 11 );
+        $guids = $this->upsert_batches( self::RULE_STATIC_IGNORE_QS, '[SPC Bunny] Ignore query string: CSS & JS', '', array_values( array_unique( $qs_patterns ) ), $guids, $results, 18, null, 11 );
 
         // ── Rule 19: Security response headers ───────────────────────────────
         // X-Content-Type-Options, X-Frame-Options, Referrer-Policy on all responses.
         // Use ExtraActions to set multiple headers in one rule.
         $guids = $this->upsert( self::RULE_SECURITY_HEADERS, [
-            'OrderIndex'          => 20,
+            'OrderIndex'          => 19,
             'ActionType'          => 5,  // SetResponseHeader
             'ActionParameter1'    => 'X-Content-Type-Options',
             'ActionParameter2'    => 'nosniff',
@@ -394,6 +356,7 @@ class SPC_Bunny_Edge_Rules {
                 'PatternMatchingType' => 0,
             ] ],
             'ExtraActions'        => [
+                [ 'ActionType' => 5, 'ActionParameter1' => 'X-Frame-Options',     'ActionParameter2' => 'SAMEORIGIN',                  'ActionParameter3' => '' ],
                 [ 'ActionType' => 5, 'ActionParameter1' => 'Referrer-Policy',     'ActionParameter2' => 'strict-origin-when-cross-origin', 'ActionParameter3' => '' ],
                 [ 'ActionType' => 5, 'ActionParameter1' => 'X-XSS-Protection',   'ActionParameter2' => '1; mode=block',               'ActionParameter3' => '' ],
             ],
@@ -405,43 +368,19 @@ class SPC_Bunny_Edge_Rules {
     }
 
     public function remove_all(): array {
+        $guids   = get_option( self::GUIDS_OPT, [] );
         $results = [];
-
-        // Fetch live rules from Bunny and delete every [SPC Bunny] rule,
-        // regardless of whether we have its GUID stored locally.
-        $live = $this->api->get_edge_rules();
-        if ( ! is_wp_error( $live ) ) {
-            foreach ( $live as $rule ) {
-                $guid = $rule['Guid'] ?? '';
-                $desc = $rule['Description'] ?? '';
-                if ( ! $guid || ! str_starts_with( $desc, '[SPC Bunny]' ) ) {
-                    continue;
-                }
-                $r = $this->api->delete_edge_rule( $guid );
-                $results[ $guid ] = [
-                    'label'   => $desc,
-                    'success' => ! is_wp_error( $r ),
-                    'message' => is_wp_error( $r ) ? $r->get_error_message() : 'Deleted',
-                ];
-            }
-        }
-
-        // Also delete anything in our stored GUIDs not caught above (edge case)
-        foreach ( get_option( self::GUIDS_OPT, [] ) as $key => $guid ) {
-            if ( isset( $results[ $guid ] ) ) {
-                continue;
-            }
+        foreach ( $guids as $key => $guid ) {
             $r = $this->api->delete_edge_rule( $guid );
-            $results[ $guid ] = [
+            $results[ $key ] = [
                 'label'   => $key,
                 'success' => ! is_wp_error( $r ),
                 'message' => is_wp_error( $r ) ? $r->get_error_message() : 'Deleted',
             ];
         }
-
         delete_option( self::GUIDS_OPT );
-        $all_ok = empty( $results ) || ! in_array( false, array_column( $results, 'success' ), true );
-        return [ 'success' => $all_ok, 'results' => array_values( $results ) ];
+        $all_ok = ! in_array( false, array_column( $results, 'success' ), true );
+        return [ 'success' => $all_ok, 'results' => $results ];
     }
 
     public function get_deployed_guids(): array {
@@ -470,14 +409,9 @@ class SPC_Bunny_Edge_Rules {
             return [];
         }
         $paths     = [];
-        // SureCart stores page IDs under surecart_page_for_{key}, NOT surecart_page_id_{key}.
-        // Also try the legacy surecart_page_id_ prefix for older installs.
-        $page_keys = [ 'checkout', 'dashboard', 'order_confirmation', 'shop', 'cart', 'account' ];
+        $page_keys = [ 'checkout', 'dashboard', 'order_confirmation', 'shop', 'cart' ];
         foreach ( $page_keys as $key ) {
-            $id = (int) get_option( "surecart_page_for_{$key}", 0 );
-            if ( ! $id ) {
-                $id = (int) get_option( "surecart_page_id_{$key}", 0 ); // legacy fallback
-            }
+            $id = (int) get_option( "surecart_page_id_{$key}", 0 );
             if ( $id > 0 ) {
                 $paths = array_merge( $paths, $this->resolve_paths( $id ) );
             }
@@ -610,23 +544,24 @@ class SPC_Bunny_Edge_Rules {
     }
 
     private function upsert( string $key, array $rule, array $guids, array &$results ): array {
+        // Skip deployment if disabled in settings; delete from Bunny if previously deployed
         if ( ! $this->is_rule_enabled( $key ) ) {
-            return $guids;
-        }
-        $response = $this->api->upsert_edge_rule( $rule );
-        if ( is_wp_error( $response ) ) {
-            $msg = $response->get_error_message();
-            // Translate the Bunny "Order index must be unique" error into plain English
-            if ( str_contains( $msg, 'Order index must be unique' ) || str_contains( $msg, 'edgerule.invalid' ) ) {
-                $msg = __( 'Rule already exists at this slot — click Deploy again to retry after the previous wipe completes.', 'spc-bunny' );
+            if ( ! empty( $guids[ $key ] ) ) {
+                $this->api->delete_edge_rule( $guids[ $key ] );
+                unset( $guids[ $key ] );
             }
-            $results[ $key ] = [ 'label' => $rule['Description'], 'success' => false, 'message' => $msg ];
             return $guids;
         }
-        $guid = $response['Guid'] ?? null;
-        $results[ $key ] = [ 'label' => $rule['Description'], 'success' => true, 'message' => 'Created' ];
-        if ( $guid ) {
-            $guids[ $key ] = $guid;
+        $guid     = $guids[ $key ] ?? null;
+        $response = $this->api->upsert_edge_rule( $rule, $guid );
+        if ( is_wp_error( $response ) ) {
+            $results[ $key ] = [ 'label' => $rule['Description'], 'success' => false, 'message' => $response->get_error_message() ];
+            return $guids;
+        }
+        $new_guid = $response['Guid'] ?? $guid;
+        $results[ $key ] = [ 'label' => $rule['Description'], 'success' => true, 'message' => $guid ? 'Updated' : 'Created' ];
+        if ( $new_guid ) {
+            $guids[ $key ] = $new_guid;
         }
         return $guids;
     }

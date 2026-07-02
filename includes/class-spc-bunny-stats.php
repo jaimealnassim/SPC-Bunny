@@ -57,7 +57,7 @@ class SPC_Bunny_Stats {
         $response = wp_remote_head( home_url( '/' ), [
             'timeout'    => 8,
             'user-agent' => 'SPC-Bunny-Health/1.0',
-            'sslverify'  => (bool) apply_filters( 'https_ssl_verify', true ),
+            'sslverify'  => true,
         ] );
 
         if ( is_wp_error( $response ) ) {

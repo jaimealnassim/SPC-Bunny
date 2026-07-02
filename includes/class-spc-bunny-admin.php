@@ -16,8 +16,7 @@ class SPC_Bunny_Admin {
         add_action( 'wp_ajax_spc_bunny_fetch_stats',     [ $this, 'ajax_stats'  ] );
         add_action( 'wp_ajax_spc_bunny_warm_now',        [ $this, 'ajax_warm'   ] );
         add_action( 'wp_ajax_spc_bunny_deploy_rules',    [ $this, 'ajax_deploy' ] );
-        add_action( 'wp_ajax_spc_bunny_update_rules',    [ $this, 'ajax_update' ] );
-        add_action( 'wp_ajax_spc_bunny_remove_rules',    [ $this, 'ajax_remove' ] );
+        add_action( 'wp_ajax_spc_bunny_remove_rules',    [ $this, 'ajax_remove'      ] );
         add_action( 'wp_ajax_spc_bunny_sync_status',     [ $this, 'ajax_sync_status'      ] );
         add_action( 'wp_ajax_spc_bunny_test_perma_cache', [ $this, 'ajax_test_perma_cache' ] );
         add_action( 'wp_ajax_spc_bunny_fetch_dns_zones',  [ $this, 'ajax_fetch_dns_zones'  ] );
@@ -81,7 +80,6 @@ class SPC_Bunny_Admin {
             'nonceStats'    => wp_create_nonce( 'spc_bunny_fetch_stats' ),
             'nonceWarm'     => wp_create_nonce( 'spc_bunny_warm_now' ),
             'nonceDeploy'   => wp_create_nonce( 'spc_bunny_deploy_rules' ),
-            'nonceUpdate'   => wp_create_nonce( 'spc_bunny_update_rules' ),
             'nonceRemove'   => wp_create_nonce( 'spc_bunny_remove_rules' ),
             'i18n'          => [
                 'testing'       => __( 'Testing...', 'spc-bunny' ),
@@ -91,9 +89,7 @@ class SPC_Bunny_Admin {
                 'purging'       => __( 'Purging...', 'spc-bunny' ),
                 'purgeOk'       => __( 'Cache purged', 'spc-bunny' ),
                 'deploying'     => __( 'Deploying...', 'spc-bunny' ),
-                'updating'      => __( 'Removing then redeploying...', 'spc-bunny' ),
                 'deployOk'      => __( 'Edge rules deployed', 'spc-bunny' ),
-                'updateOk'      => __( 'Edge rules updated', 'spc-bunny' ),
                 'removing'      => __( 'Removing...', 'spc-bunny' ),
                 'removeOk'      => __( 'Edge rules removed', 'spc-bunny' ),
                 'confirmRemove' => __( 'Remove all SPC Bunny edge rules from Bunny CDN?', 'spc-bunny' ),
@@ -134,13 +130,12 @@ class SPC_Bunny_Admin {
         check_ajax_referer( 'spc_bunny_fetch_stats', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); return; }
         $days   = absint( $_POST['days'] ?? 7 );
-        $stats_obj = new SPC_Bunny_Stats();
-        $stats     = $stats_obj->get( $days );
-        $health    = $stats_obj->get_cache_status();
+        $stats  = ( new SPC_Bunny_Stats() )->get( $days );
+        $health = ( new SPC_Bunny_Stats() )->get_cache_status();
         if ( is_wp_error( $stats ) ) { wp_send_json_error( [ 'message' => $stats->get_error_message() ] ); return; }
         $bunny_last = get_option( 'spc_bunny_last_purge', '' );
         $spc_last   = get_option( 'spc_bunny_spc_last_purge', '' );
-        $in_sync    = $bunny_last && $spc_last && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 30 );
+        $in_sync    = $bunny_last && $spc_last && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 10 );
         wp_send_json_success( [
             'stats'      => $stats,
             'health'     => $health,
@@ -155,7 +150,7 @@ class SPC_Bunny_Admin {
         if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); return; }
         $bunny_last = get_option( 'spc_bunny_last_purge', '' );
         $spc_last   = get_option( 'spc_bunny_spc_last_purge', '' );
-        $in_sync    = $bunny_last && $spc_last && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 30 );
+        $in_sync    = $bunny_last && $spc_last && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 10 );
         wp_send_json_success( [
             'bunny_last' => $bunny_last,
             'spc_last'   => $spc_last,
@@ -261,7 +256,7 @@ class SPC_Bunny_Admin {
     public function ajax_deploy(): void {
         check_ajax_referer( 'spc_bunny_deploy_rules', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); return; }
-        $ttl         = absint( wp_unslash( $_POST['ttl'] ?? 604800 ) );
+        $ttl         = absint( $_POST['ttl']         ?? 604800 );
         $force_cache = ! empty( $_POST['force_cache'] );
         update_option( 'spc_bunny_edge_ttl',    $ttl,         false );
         update_option( 'spc_bunny_force_cache', $force_cache, false );
@@ -273,21 +268,6 @@ class SPC_Bunny_Admin {
         update_option( 'spc_bunny_settings', $settings, false );
         $result = ( new SPC_Bunny_Edge_Rules() )->deploy( $ttl, $force_cache );
         $result['success'] ? wp_send_json_success( $result ) : wp_send_json_error( $result );
-    }
-
-    public function ajax_update(): void {
-        check_ajax_referer( 'spc_bunny_update_rules', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => __( 'Permission denied.', 'spc-bunny' ) ] ); return; }
-        // deploy() wipes all rules before recreating — no separate remove_all() needed.
-        $ttl         = absint( wp_unslash( $_POST['ttl'] ?? 604800 ) );
-        $force_cache = ! empty( $_POST['force_cache'] );
-        $settings    = get_option( 'spc_bunny_settings', [] );
-        $settings['custom_bypass_paths'] = sanitize_textarea_field( wp_unslash( $_POST['custom_bypass_paths'] ?? '' ) );
-        $raw_enabled = $_POST['enabled_rules'] ?? null;
-        $settings['enabled_rules'] = is_array( $raw_enabled ) ? array_map( 'sanitize_key', $raw_enabled ) : null;
-        update_option( 'spc_bunny_settings', $settings );
-        $result = ( new SPC_Bunny_Edge_Rules() )->deploy( $ttl, $force_cache );
-        wp_send_json( $result );
     }
 
     public function ajax_remove(): void {
@@ -397,7 +377,7 @@ class SPC_Bunny_Admin {
                 $bunny_last  = get_option( 'spc_bunny_last_purge', '' );
                 $spc_last    = get_option( 'spc_bunny_spc_last_purge', '' );
                 $both_set    = $bunny_last && $spc_last;
-                $in_sync     = $both_set && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 30 );
+                $in_sync     = $both_set && ( abs( strtotime( $bunny_last ) - strtotime( $spc_last ) ) <= 10 );
                 ?>
                 <div class="spc-bunny-card spc-bunny-sync-card">
                     <h2><?php esc_html_e( 'Cache Sync Status', 'spc-bunny' ); ?></h2>
@@ -620,18 +600,17 @@ class SPC_Bunny_Admin {
                             SPC_Bunny_Edge_Rules::RULE_ADMIN_DISABLE_OPT    => [ '&#128683;', __( '6.  Disable Optimizer: WP admin & login',     'spc-bunny' ), __( 'Prevents Bunny Optimizer mangling admin and login page assets.', 'spc-bunny' ), true ],
                             SPC_Bunny_Edge_Rules::RULE_BYPASS_CRON          => [ '&#128336;', __( '7.  Bypass cache: wp-cron.php',               'spc-bunny' ), __( 'WP cron must always hit origin. Never cache or Shield-challenge it.', 'spc-bunny' ), true ],
                             SPC_Bunny_Edge_Rules::RULE_BYPASS_REST          => [ '&#128279;', __( '8.  Bypass cache: REST API',                  'spc-bunny' ), __( '/wp-json/* responses are dynamic and must never be cached.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_POST          => [ '&#128394;', __( '9.  Bypass cache: POST requests',              'spc-bunny' ), __( 'All HTTP POST requests (form submissions, AJAX writes) bypass cache entirely — even with Force Cache active.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_FEEDS         => [ '&#128240;', __( '10. Bypass cache: RSS/Atom feeds',            'spc-bunny' ), __( 'Feeds change with every post. Always serve fresh to aggregators.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_WOO           => [ '&#128722;', __( '11. Bypass cache: WooCommerce pages',         'spc-bunny' ), __( 'Cart, checkout, account, shop — dynamically resolved from WooCommerce settings.', 'spc-bunny' ), class_exists( 'WooCommerce' ) ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_WOO_COOKIE    => [ '&#127811;', __( '12. Bypass cache: WooCommerce cookies',       'spc-bunny' ), __( 'Session-based bypass for woocommerce_cart_hash, items_in_cart, session_*.', 'spc-bunny' ), class_exists( 'WooCommerce' ) ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_SC            => [ '&#128722;', __( '13. Bypass cache: SureCart pages',            'spc-bunny' ), __( 'Checkout, dashboard, order confirmation, shop, cart — from SureCart settings.', 'spc-bunny' ), class_exists( 'SureCart' ) ],
-                            SPC_Bunny_Edge_Rules::RULE_BYPASS_SC_COOKIE     => [ '&#127811;', __( '14. Bypass cache: SureCart cookies',          'spc-bunny' ), __( 'Session-based bypass for sc_session*, surecart_*, sc_cart*.', 'spc-bunny' ), class_exists( 'SureCart' ) ],
-                            SPC_Bunny_Edge_Rules::RULE_CUSTOM_BYPASS        => [ '&#9998;',   __( '15. Bypass cache: custom URLs',              'spc-bunny' ), __( 'User-defined paths to always serve fresh. Configure in the Custom Exclusions card above.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_CACHE_HTML           => [ '&#9889;',   __( '16. Cache HTML: anonymous visitors',         'spc-bunny' ), __( 'Caches HTTP 200 responses at Bunny edge. TTL controlled by the slider above.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_NO_BROWSER_CACHE     => [ '&#128683;', __( '17. No browser cache: HTML',                 'spc-bunny' ), __( 'Sends Cache-Control: no-store to browsers for HTML. Edge still caches — browsers always fetch fresh after purge.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_STATIC_BROWSER_CACHE => [ '&#128190;', __( '18. Long browser cache: static assets',      'spc-bunny' ), __( 'Sets 1-year browser cache for CSS, JS, images and fonts. Complements rule 17.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_STATIC_IGNORE_QS     => [ '&#128257;', __( '19. Ignore query string: CSS & JS',          'spc-bunny' ), __( '?ver=x params share one cache entry. Eliminates redundant misses from WordPress version params.', 'spc-bunny' ), true ],
-                            SPC_Bunny_Edge_Rules::RULE_SECURITY_HEADERS     => [ '&#128421;', __( '20. Security headers',                       'spc-bunny' ), __( 'Adds X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection on all responses.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_BYPASS_FEEDS         => [ '&#128240;', __( '9.  Bypass cache: RSS/Atom feeds',            'spc-bunny' ), __( 'Feeds change with every post. Always serve fresh to aggregators.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_BYPASS_WOO           => [ '&#128722;', __( '10. Bypass cache: WooCommerce pages',         'spc-bunny' ), __( 'Cart, checkout, account, shop — dynamically resolved from WooCommerce settings.', 'spc-bunny' ), class_exists( 'WooCommerce' ) ],
+                            SPC_Bunny_Edge_Rules::RULE_BYPASS_WOO_COOKIE    => [ '&#127811;', __( '11. Bypass cache: WooCommerce cookies',       'spc-bunny' ), __( 'Session-based bypass for woocommerce_cart_hash, items_in_cart, session_*.', 'spc-bunny' ), class_exists( 'WooCommerce' ) ],
+                            SPC_Bunny_Edge_Rules::RULE_BYPASS_SC            => [ '&#128722;', __( '12. Bypass cache: SureCart pages',            'spc-bunny' ), __( 'Checkout, dashboard, order confirmation, shop, cart — from SureCart settings.', 'spc-bunny' ), class_exists( 'SureCart' ) ],
+                            SPC_Bunny_Edge_Rules::RULE_BYPASS_SC_COOKIE     => [ '&#127811;', __( '13. Bypass cache: SureCart cookies',          'spc-bunny' ), __( 'Session-based bypass for sc_session*, surecart_*, sc_cart*.', 'spc-bunny' ), class_exists( 'SureCart' ) ],
+                            SPC_Bunny_Edge_Rules::RULE_CUSTOM_BYPASS        => [ '&#9998;',   __( '14. Bypass cache: custom URLs',              'spc-bunny' ), __( 'User-defined paths to always serve fresh. Configure in the Custom Exclusions card above.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_CACHE_HTML           => [ '&#9889;',   __( '15. Cache HTML: anonymous visitors',         'spc-bunny' ), __( 'Caches HTTP 200 responses at Bunny edge. TTL controlled by the slider above.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_NO_BROWSER_CACHE     => [ '&#128683;', __( '16. No browser cache: HTML',                 'spc-bunny' ), __( 'Sends Cache-Control: no-store to browsers for HTML. Edge still caches — browsers always fetch fresh after purge.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_STATIC_BROWSER_CACHE => [ '&#128190;', __( '17. Long browser cache: static assets',      'spc-bunny' ), __( 'Sets 1-year browser cache for CSS, JS, images and fonts. Complements rule 16.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_STATIC_IGNORE_QS     => [ '&#128257;', __( '18. Ignore query string: CSS & JS',          'spc-bunny' ), __( '?ver=x params share one cache entry. Eliminates redundant misses from WordPress version params.', 'spc-bunny' ), true ],
+                            SPC_Bunny_Edge_Rules::RULE_SECURITY_HEADERS     => [ '&#128421;', __( '19. Security headers',                       'spc-bunny' ), __( 'Adds X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection on all responses.', 'spc-bunny' ), true ],
                         ];
                         $enabled_rules_setting = $opts['enabled_rules'] ?? null;
                         foreach ( $rules as $key => [ $icon, $title, $desc, $show ] ) :
@@ -723,9 +702,8 @@ class SPC_Bunny_Admin {
                 </div>
 
                 <div class="spc-bunny-actions">
-                    <button id="js-deploy" class="button button-primary" <?php disabled( ! $api->is_configured() ); ?>><?php esc_html_e( 'Deploy Edge Rules', 'spc-bunny' ); ?></button>
-                    <button id="js-update" class="button button-secondary" <?php disabled( ! $api->is_configured() ); ?>><?php esc_html_e( 'Update Edge Rules', 'spc-bunny' ); ?></button>
-                    <button id="js-remove" class="button spc-bunny-remove-btn" <?php disabled( ! $api->is_configured() ); ?>><?php esc_html_e( 'Remove All Rules', 'spc-bunny' ); ?></button>
+                    <button id="js-deploy" class="button button-primary" <?php disabled( ! $api->is_configured() ); ?>><?php echo $is_deployed ? esc_html__( 'Update Edge Rules', 'spc-bunny' ) : esc_html__( 'Deploy Edge Rules', 'spc-bunny' ); ?></button>
+                    <?php if ( $is_deployed ) : ?><button id="js-remove" class="button spc-bunny-remove-btn"><?php esc_html_e( 'Remove All', 'spc-bunny' ); ?></button><?php endif; ?>
                     <span id="js-deploy-result" class="spc-bunny-inline" aria-live="polite"></span>
                 </div>
 

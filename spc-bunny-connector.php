@@ -28,13 +28,6 @@ require_once SPC_BUNNY_DIR . 'includes/class-spc-bunny-perma-cache.php';
 require_once SPC_BUNNY_DIR . 'includes/class-spc-bunny-hooks.php';
 require_once SPC_BUNNY_DIR . 'includes/class-spc-bunny-admin.php';
 
-// Nahnu auto-updater — do not remove
-if ( ! defined( 'NAHNU_UPDATER_WORKER_URL' ) ) {
-	define( 'NAHNU_UPDATER_WORKER_URL', 'https://nahnu-updates.nahnucdn.com' );
-}
-require_once SPC_BUNNY_DIR . 'includes/class-nahnu-updater.php';
-Nahnu_Updater::register( __FILE__ );
-
 SPC_Bunny_Warmer::register_hooks();
 
 /**
@@ -63,6 +56,39 @@ function spc_bunny_spc_purge_callback(): void {
 
 add_action( 'swcfpc_purge_all',  'spc_bunny_spc_purge_callback', 20, 0 );
 add_action( 'swcfpc_purge_urls', 'spc_bunny_spc_purge_callback', 20, 0 );
+
+// ── Deprecation notice ───────────────────────────────────────────────────────
+add_action( 'admin_notices', static function (): void {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+    if ( get_option( 'spc_bunny_deprecation_dismissed' ) ) {
+        return;
+    }
+    if ( isset( $_GET['spc_bunny_dismiss_notice'] ) && check_admin_referer( 'spc_bunny_dismiss' ) ) {
+        update_option( 'spc_bunny_deprecation_dismissed', 1, false );
+        return;
+    }
+    $dismiss_url = wp_nonce_url(
+        add_query_arg( 'spc_bunny_dismiss_notice', '1' ),
+        'spc_bunny_dismiss'
+    );
+    ?>
+    <div class="notice notice-warning" style="border-left-color:#FF6A00;padding:14px 16px;line-height:1.6">
+        <p>
+            <strong>&#9889; SPC Bunny Connector has been discontinued.</strong><br>
+            Please install our replacement plugin <strong><a href="https://wordpress.org/plugins/nahnu-cache-connector-bunny-net/" target="_blank" rel="noopener">Nahnu Cache Connector for Bunny.net</a></strong>
+            which includes everything this plugin does, plus new features and ongoing updates.<br>
+            <em>This plugin will no longer receive updates or bug fixes.</em>
+        </p>
+        <p>
+            <a href="https://wordpress.org/plugins/nahnu-cache-connector-bunny-net/" target="_blank" rel="noopener" class="button button-primary">Install New Plugin &rarr;</a>
+            &nbsp;
+            <a href="<?php echo esc_url( $dismiss_url ); ?>" class="button">Dismiss</a>
+        </p>
+    </div>
+    <?php
+} );
 
 add_action( 'plugins_loaded', static function (): void {
     new SPC_Bunny_Hooks();

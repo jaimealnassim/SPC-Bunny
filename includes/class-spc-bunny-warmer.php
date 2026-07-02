@@ -188,10 +188,9 @@ class SPC_Bunny_Warmer {
         if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
             return [];
         }
-        $prev_errors = libxml_use_internal_errors( true );
+        libxml_use_internal_errors( true );
         $xml = simplexml_load_string( wp_remote_retrieve_body( $response ) );
         libxml_clear_errors();
-        libxml_use_internal_errors( $prev_errors );
         if ( ! $xml ) {
             return [];
         }
